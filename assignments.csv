@@ -1,1 +1,57 @@
 ID,Subject,Teacher,Deadline,Question
+1778059924,Python ,chakare mam ,2026-05-10,"
+Assignment 5
+ SQLite Manager in Python 
+
+Section A: Theory Questions
+
+1. SQLite in Python
+- What is SQLite? Explain its features and advantages.
+- How does the sqlite3 module work in Python?
+- Explain the steps to connect a SQLite database in Python.
+- Differentiate between SQLite and other DBMS like MySQL.
+- What are cursors in SQLite? Why are they important?
+- Explain CRUD operations in SQLite with examples.
+- What is transaction management in SQLite?
+
+2. Twitter Spidering (Data Collection)
+- What is web spidering (web scraping)?
+- Explain how APIs differ from web scraping.
+- What is Twitter data mining?
+- What type of data can be collected from Twitter?
+- Explain ethical issues in web scraping.
+- What is JSON format? Why is it used in APIs?
+- Explain rate limits in APIs.
+
+3. SQL JOIN Operations
+- What is a JOIN in SQL?
+- Explain types of JOIN: INNER, LEFT, RIGHT, FULL JOIN.
+- Difference between JOIN and UNION.
+- What is a self-join?
+- Explain foreign key relationships.
+
+Section B: Practical / Coding Questions
+
+1. SQLite Manager in Python
+- Create a database named student.db and table students(id, name, age, marks)
+- Insert at least 5 records
+- Fetch, update, and delete records
+- Search student by name
+- Display records in descending order of marks
+
+2. Twitter Spidering
+- Fetch tweets using API or JSON simulation
+- Store tweets in SQLite database
+- Table: tweets(id, username, tweet, created_at)
+- Insert at least 10 tweets
+- Perform queries (count, active user, keyword search)
+
+3. JOIN Operations
+- Create tables students and marks
+- Perform INNER JOIN and LEFT JOIN
+- Find average marks and students scoring above 80
+- Perform SELF JOIN example
+
+Section C: Mini Project
+
+"
