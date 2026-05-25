@@ -13,7 +13,8 @@ app = Flask(__name__)
 IS_RENDER = os.path.exists('/etc/secrets/')
 
 if IS_RENDER:
-    UPLOAD_FOLDER = '/etc/secrets/uploads/'
+    # Fix: Store image uploads inside the writable persistent disk data mount path
+    UPLOAD_FOLDER = '/opt/render/project/src/data/static/uploads/'
     DATABASES = {
         '/etc/secrets/students.csv': ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'],
         '/etc/secrets/staff.csv': ['Emp_ID', 'Name', 'Department'],
@@ -37,6 +38,13 @@ else:
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# Safe Directory Creator: Creates the upload directory securely
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except FileExistsError:
+    if not IS_RENDER and os.path.exists(UPLOAD_FOLDER):
+        os.remove(UPLOAD_FOLDER)
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Safe Directory Creator: Cleans any conflicting regular files named "uploads" on Windows
 if not os.path.isdir(UPLOAD_FOLDER):
     try:
