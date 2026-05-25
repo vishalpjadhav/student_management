@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import calendar
 from werkzeug.utils import secure_filename
+import shutil
 
 app = Flask(__name__)
 
@@ -12,17 +13,36 @@ app = Flask(__name__)
 IS_RENDER = os.path.exists('/etc/secrets/')
 
 if IS_RENDER:
-    UPLOAD_FOLDER = '/opt/render/project/src/data/static/uploads/'
-    # Map the files to their exact absolute paths under Render secrets
+    # Writable persistent disk directory on Render
+    DATA_DIR = '/opt/render/project/src/data/'
+    UPLOAD_FOLDER = os.path.join(DATA_DIR, 'static/uploads/')
+    
     DATABASES = {
-        '/etc/secrets/students.csv': ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'],
-        '/etc/secrets/staff.csv': ['Emp_ID', 'Name', 'Department'],
-        '/etc/secrets/timetable.csv': ['ID', 'Day', 'Time', 'Subject', 'Teacher'],
-        '/etc/secrets/assignments.csv': ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'],
-        '/etc/secrets/attendance.csv': ['Roll_No', 'Date', 'Status'],
-        '/etc/secrets/holidays.csv': ['Date']
+        'students.csv': ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'],
+        'staff.csv': ['Emp_ID', 'Name', 'Department'],
+        'timetable.csv': ['ID', 'Day', 'Time', 'Subject', 'Teacher'],
+        'assignments.csv': ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'],
+        'attendance.csv': ['Roll_No', 'Date', 'Status'],
+        'holidays.csv': ['Date']
     }
+    
+    # Securely create storage folders on the persistent disk
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    # COPY TEMPLATES FROM RENDER SECRETS TO WRITABLE STORAGE ONCE IF MISSING
+    for file, columns in DATABASES.items():
+        dest_path = os.path.join(DATA_DIR, file)
+        source_path = os.path.join('/etc/secrets/', file)
+        
+        if not os.path.exists(dest_path):
+            if os.path.exists(source_path) and os.path.getsize(source_path) > 0:
+                shutil.copy(source_path, dest_path)
+            else:
+                # Fallback if secret files are empty
+                pd.DataFrame(columns=columns).to_csv(dest_path, index=False)
 else:
+    # Local Windows Configuration Paths
+    DATA_DIR = ''
     UPLOAD_FOLDER = 'static/uploads/'
     DATABASES = {
         'students.csv': ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'],
@@ -32,33 +52,35 @@ else:
         'attendance.csv': ['Roll_No', 'Date', 'Status'],
         'holidays.csv': ['Date']
     }
-
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-try:
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-except FileExistsError:
-    if not IS_RENDER and os.path.exists(UPLOAD_FOLDER):
-        os.remove(UPLOAD_FOLDER)
+    
+    try:
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    except FileExistsError:
+        if os.path.exists(UPLOAD_FOLDER):
+            os.remove(UPLOAD_FOLDER)
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Generate baseline files locally if missing
-if not IS_RENDER:
+    # Generate baseline files locally if missing
     for file, columns in DATABASES.items():
         if not os.path.exists(file):
             pd.DataFrame(columns=columns).to_csv(file, index=False)
 
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_file_path(filename):
+    """Returns the absolute writable path on Render or local path on Windows."""
+    if IS_RENDER:
+        return os.path.join(DATA_DIR, filename)
+    return filename
+
 def safe_read_csv(filename, default_columns, dtype_dict=None):
-    """Safely reads a CSV file from either local directory or Render secrets directory."""
-    path = f'/etc/secrets/{filename}' if IS_RENDER else filename
-    
+    path = get_file_path(filename)
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         return pd.DataFrame(columns=default_columns)
-    
     try:
         if dtype_dict:
             return pd.read_csv(path, dtype=dtype_dict)
@@ -67,12 +89,10 @@ def safe_read_csv(filename, default_columns, dtype_dict=None):
         return pd.DataFrame(columns=default_columns)
 
 def safe_write_csv(df, filename):
-    """Safely writes a DataFrame back to the correct CSV path."""
-    path = f'/etc/secrets/{filename}' if IS_RENDER else filename
+    path = get_file_path(filename)
     df.to_csv(path, index=False)
 
 def calculate_student_percentage(roll_no, current_month_days):
-    """Calculates attendance percentage based on active working days."""
     holidays_set = set()
     h_df = safe_read_csv('holidays.csv', ['Date'])
     if not h_df.empty:
