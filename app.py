@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-import pandas as pd
+import csv
 import os
 import time
 from datetime import datetime
@@ -13,7 +13,7 @@ app = Flask(__name__)
 IS_RENDER = os.path.exists('/etc/secrets/')
 
 if IS_RENDER:
-    # Writable persistent disk directory on Render
+    # PERMANENT STORAGE: Files stored here will NEVER be deleted when the site closes
     DATA_DIR = '/opt/render/project/src/data/'
     UPLOAD_FOLDER = os.path.join(DATA_DIR, 'static/uploads/')
     
@@ -26,10 +26,9 @@ if IS_RENDER:
         'holidays.csv': ['Date']
     }
     
-    # Securely create storage folders on the persistent disk
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
-    # COPY TEMPLATES FROM RENDER SECRETS TO WRITABLE STORAGE ONCE IF MISSING
+    # Check all CSV files: copy them from secrets to permanent storage if missing
     for file, columns in DATABASES.items():
         dest_path = os.path.join(DATA_DIR, file)
         source_path = os.path.join('/etc/secrets/', file)
@@ -38,8 +37,9 @@ if IS_RENDER:
             if os.path.exists(source_path) and os.path.getsize(source_path) > 0:
                 shutil.copy(source_path, dest_path)
             else:
-                # Fallback if secret files are empty
-                pd.DataFrame(columns=columns).to_csv(dest_path, index=False)
+                with open(dest_path, mode='w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(columns)
 else:
     # Local Windows Configuration Paths
     DATA_DIR = ''
@@ -53,17 +53,12 @@ else:
         'holidays.csv': ['Date']
     }
     
-    try:
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    except FileExistsError:
-        if os.path.exists(UPLOAD_FOLDER):
-            os.remove(UPLOAD_FOLDER)
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-    # Generate baseline files locally if missing
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     for file, columns in DATABASES.items():
         if not os.path.exists(file):
-            pd.DataFrame(columns=columns).to_csv(file, index=False)
+            with open(file, mode='w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(columns)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -71,59 +66,61 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# --- FIXED PATH DEFINITION UTILITY ---
 def get_file_path(filename):
-    """Returns the absolute writable path on Render or local path on Windows."""
+    """Ensures files are read and written strictly to the permanent disk path on Render."""
     if IS_RENDER:
         return os.path.join(DATA_DIR, filename)
     return filename
 
-def safe_read_csv(filename, default_columns, dtype_dict=None):
+# --- LIGHTWEIGHT PLAIN TEXT CSV UTILITIES ---
+def safe_read_rows(filename, default_columns):
     path = get_file_path(filename)
     if not os.path.exists(path) or os.path.getsize(path) == 0:
-        return pd.DataFrame(columns=default_columns)
+        return []
     try:
-        if dtype_dict:
-            return pd.read_csv(path, dtype=dtype_dict)
-        return pd.read_csv(path, dtype=str)
+        with open(path, mode='r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            return [dict(row) for row in reader]
     except Exception:
-        return pd.DataFrame(columns=default_columns)
+        return []
 
-def safe_write_csv(df, filename):
+def safe_write_rows(rows, filename, columns):
     path = get_file_path(filename)
-    df.to_csv(path, index=False)
+    try:
+        with open(path, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+            for row in rows:
+                filtered_row = {k: row[k] for k in columns if k in row}
+                writer.writerow(filtered_row)
+    except Exception as e:
+        print(f"Write error: {e}")
 
 def calculate_student_percentage(roll_no, current_month_days):
-    holidays_set = set()
-    h_df = safe_read_csv('holidays.csv', ['Date'])
-    if not h_df.empty:
-        holidays_set = set(h_df['Date'].fillna('').astype(str).tolist())
+    h_rows = safe_read_rows('holidays.csv', ['Date'])
+    holidays_set = {row['Date'] for row in h_rows if 'Date' in row and row['Date']}
             
     active_open_days = [d for d in current_month_days if d not in holidays_set]
     total_working_days = len(active_open_days)
     
     attended_count = 0
-    att_df = safe_read_csv('attendance.csv', ['Roll_No', 'Date', 'Status'])
-    if not att_df.empty and total_working_days > 0:
-        try:
-            s_logs = att_df[(att_df['Roll_No'].astype(str) == str(roll_no)) & (att_df['Status'].astype(str) == '1')]
-            student_present_dates = s_logs['Date'].fillna('').astype(str).tolist()
-            for d in student_present_dates:
-                if d in active_open_days:
+    att_rows = safe_read_rows('attendance.csv', ['Roll_No', 'Date', 'Status'])
+    if att_rows and total_working_days > 0:
+        for row in att_rows:
+            if row.get('Roll_No') == str(roll_no) and row.get('Status') == '1':
+                if row.get('Date') in active_open_days:
                     attended_count += 1
-        except Exception:
-            pass
                     
     percentage = round((attended_count / total_working_days * 100), 2) if total_working_days > 0 else 0
     return percentage, attended_count, total_working_days
 
 @app.route('/')
 def index():
-    students_df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str})
-    students = students_df.fillna('').to_dict('records')
-    
-    staff = safe_read_csv('staff.csv', ['Emp_ID', 'Name', 'Department']).fillna('').to_dict('records')
-    timetable = safe_read_csv('timetable.csv', ['ID', 'Day', 'Time', 'Subject', 'Teacher']).fillna('').to_dict('records')
-    assignments = safe_read_csv('assignments.csv', ['ID', 'Subject', 'Teacher', 'Deadline', 'Question']).fillna('').to_dict('records')
+    students = safe_read_rows('students.csv', DATABASES['students.csv'])
+    staff = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    timetable = safe_read_rows('timetable.csv', DATABASES['timetable.csv'])
+    assignments = safe_read_rows('assignments.csv', DATABASES['assignments.csv'])
     
     now = datetime.now()
     selected_month = int(request.args.get('month', now.month))
@@ -133,18 +130,17 @@ def index():
     num_days = calendar.monthrange(selected_year, selected_month)[1]
     days_list = [f"{selected_year}-{selected_month:02d}-{day:02d}" for day in range(1, num_days + 1)]
     
-    holidays_df = safe_read_csv('holidays.csv', ['Date'])
-    holidays_list = holidays_df['Date'].fillna('').astype(str).tolist() if not holidays_df.empty else []
+    h_rows = safe_read_rows('holidays.csv', ['Date'])
+    holidays_list = [row['Date'] for row in h_rows if 'Date' in row]
     
     attendance_map = {}
-    att_df = safe_read_csv('attendance.csv', ['Roll_No', 'Date', 'Status'])
-    if not att_df.empty:
-        for _, row in att_df.iterrows():
-            if pd.notna(row['Roll_No']) and pd.notna(row['Date']):
-                attendance_map[(str(row['Roll_No']), str(row['Date']))] = int(row['Status'])
+    att_rows = safe_read_rows('attendance.csv', ['Roll_No', 'Date', 'Status'])
+    for row in att_rows:
+        if row.get('Roll_No') and row.get('Date'):
+            attendance_map[(str(row['Roll_No']), str(row['Date']))] = int(row.get('Status', 0))
     
     for student in students:
-        pct, att, tot = calculate_student_percentage(student['Roll_No'], days_list)
+        pct, att, tot = calculate_student_percentage(student.get('Roll_No'), days_list)
         student['Attendance_Percent'] = pct
         student['Attended'] = att
         student['Total_Classes'] = tot
@@ -166,23 +162,18 @@ def toggle_attendance():
     month = int(request.form.get('month', datetime.now().month))
     year = int(request.form.get('year', datetime.now().year))
 
-    df = safe_read_csv('attendance.csv', ['Roll_No', 'Date', 'Status'])
-    if not df.empty:
-        df = df[~((df['Roll_No'].astype(str) == str(roll_no)) & (df['Date'].astype(str) == str(date)))]
+    rows = safe_read_rows('attendance.csv', DATABASES['attendance.csv'])
+    filtered_rows = [r for r in rows if not (r.get('Roll_No') == str(roll_no) and r.get('Date') == str(date))]
     
-    new_entry = pd.DataFrame([{'Roll_No': str(roll_no), 'Date': str(date), 'Status': str(status)}])
-    df = pd.concat([df, new_entry], ignore_index=True)
-    safe_write_csv(df, 'attendance.csv')
+    filtered_rows.append({'Roll_No': str(roll_no), 'Date': str(date), 'Status': str(status)})
+    safe_write_rows(filtered_rows, 'attendance.csv', DATABASES['attendance.csv'])
     
     num_days = calendar.monthrange(year, month)[1]
     days_list = [f"{year}-{month:02d}-{day:02d}" for day in range(1, num_days + 1)]
     
     pct, att, tot = calculate_student_percentage(roll_no, days_list)
     return jsonify({
-        'success': True,
-        'new_percent': pct,
-        'new_attended': att,
-        'new_total': tot
+        'success': True, 'new_percent': pct, 'new_attended': att, 'new_total': tot
     })
 
 @app.route('/toggle_holiday', methods=['POST'])
@@ -191,14 +182,15 @@ def toggle_holiday():
     month = request.form.get('month')
     year = request.form.get('year')
     
-    df = safe_read_csv('holidays.csv', ['Date'])
+    rows = safe_read_rows('holidays.csv', DATABASES['holidays.csv'])
+    existing_dates = [r.get('Date') for r in rows]
     
-    if not df.empty and date in df['Date'].fillna('').astype(str).values:
-        df = df[df['Date'].astype(str) != str(date)]
+    if str(date) in existing_dates:
+        rows = [r for r in rows if r.get('Date') != str(date)]
     else:
-        df = pd.concat([df, pd.DataFrame([{'Date': str(date)}])], ignore_index=True)
+        rows.append({'Date': str(date)})
         
-    safe_write_csv(df, 'holidays.csv')
+    safe_write_rows(rows, 'holidays.csv', DATABASES['holidays.csv'])
     return redirect(url_for('index', month=month, year=year, active_tab='admin_students'))
 
 @app.route('/student_login', methods=['POST'])
@@ -206,7 +198,7 @@ def student_login():
     roll_no = request.form.get('login_roll_no')
     password = request.form.get('login_password')
     
-    df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str}).fillna('')
+    rows = safe_read_rows('students.csv', DATABASES['students.csv'])
     student_data = None
     login_error = None
 
@@ -214,26 +206,31 @@ def student_login():
     num_days = calendar.monthrange(now.year, now.month)[1]
     days_list = [f"{now.year}-{now.month:02d}-{day:02d}" for day in range(1, num_days + 1)]
 
-    if not df.empty and str(roll_no) in df['Roll_No'].values:
-        student_row = df[df['Roll_No'] == str(roll_no)].iloc[0]
-        if str(student_row['Password']) == str(password):
+    target_student = None
+    for r in rows:
+        if r.get('Roll_No') == str(roll_no):
+            target_student = r
+            break
+
+    if target_student:
+        if str(target_student.get('Password')) == str(password):
             percentage, attended, total = calculate_student_percentage(roll_no, days_list)
             student_data = {
-                'Roll_No': student_row['Roll_No'], 'Name': student_row['Name'], 'Course': student_row['Course'],
-                'Profile_Pic': student_row['Profile_Pic'], 'Attendance_Percent': percentage, 'Attended': attended, 'Total_Classes': total
+                'Roll_No': target_student.get('Roll_No'), 'Name': target_student.get('Name'), 'Course': target_student.get('Course'),
+                'Profile_Pic': target_student.get('Profile_Pic'), 'Attendance_Percent': percentage, 'Attended': attended, 'Total_Classes': total
             }
         else:
             login_error = "Incorrect Password. Please try again."
     else:
         login_error = "Student Roll Number not registered."
 
-    students = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str}).fillna('').to_dict('records')
-    staff = safe_read_csv('staff.csv', ['Emp_ID', 'Name', 'Department']).fillna('').to_dict('records')
-    timetable = safe_read_csv('timetable.csv', ['ID', 'Day', 'Time', 'Subject', 'Teacher']).fillna('').to_dict('records')
-    assignments = safe_read_csv('assignments.csv', ['ID', 'Subject', 'Teacher', 'Deadline', 'Question']).fillna('').to_dict('records')
+    students = safe_read_rows('students.csv', DATABASES['students.csv'])
+    staff = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    timetable = safe_read_rows('timetable.csv', DATABASES['timetable.csv'])
+    assignments = safe_read_rows('assignments.csv', DATABASES['assignments.csv'])
     
     for s in students:
-        pct, att, tot = calculate_student_percentage(s['Roll_No'], days_list)
+        pct, att, tot = calculate_student_percentage(s.get('Roll_No'), days_list)
         s['Attendance_Percent'] = pct
         s['Attended'] = att
         s['Total_Classes'] = tot
@@ -258,24 +255,25 @@ def upload_profile_pic():
         filename = secure_filename(f"avatar_{roll_no}_{int(time.time())}.{file.filename.rsplit('.', 1)[1].lower()}")
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         
-        df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str})
-        if not df.empty:
-            df.loc[df['Roll_No'] == str(roll_no), 'Profile_Pic'] = filename
-            safe_write_csv(df, 'students.csv')
+        rows = safe_read_rows('students.csv', DATABASES['students.csv'])
+        for r in rows:
+            if r.get('Roll_No') == str(roll_no):
+                r['Profile_Pic'] = filename
+        safe_write_rows(rows, 'students.csv', DATABASES['students.csv'])
         
-    df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str}).fillna('')
-    student_row = df[df['Roll_No'] == str(roll_no)].iloc[0]
+    rows = safe_read_rows('students.csv', DATABASES['students.csv'])
+    target_row = next((r for r in rows if r.get('Roll_No') == str(roll_no)), {'Roll_No':roll_no, 'Name':'', 'Course':'', 'Profile_Pic':''})
     percentage, attended, total = calculate_student_percentage(roll_no, days_list)
     
     student_data = {
-        'Roll_No': student_row['Roll_No'], 'Name': student_row['Name'], 'Course': student_row['Course'],
-        'Profile_Pic': student_row['Profile_Pic'], 'Attendance_Percent': percentage, 'Attended': attended, 'Total_Classes': total
+        'Roll_No': target_row.get('Roll_No'), 'Name': target_row.get('Name'), 'Course': target_row.get('Course'),
+        'Profile_Pic': target_row.get('Profile_Pic'), 'Attendance_Percent': percentage, 'Attended': attended, 'Total_Classes': total
     }
     
-    students = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str}).fillna('').to_dict('records')
-    staff = safe_read_csv('staff.csv', ['Emp_ID', 'Name', 'Department']).fillna('').to_dict('records')
-    timetable = safe_read_csv('timetable.csv', ['ID', 'Day', 'Time', 'Subject', 'Teacher']).fillna('').to_dict('records')
-    assignments = safe_read_csv('assignments.csv', ['ID', 'Subject', 'Teacher', 'Deadline', 'Question']).fillna('').to_dict('records')
+    students = safe_read_rows('students.csv', DATABASES['students.csv'])
+    staff = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    timetable = safe_read_rows('timetable.csv', DATABASES['timetable.csv'])
+    assignments = safe_read_rows('assignments.csv', DATABASES['assignments.csv'])
     
     return render_template(
         'index.html', students=students, staff=staff, timetable=timetable, assignments=assignments, 
@@ -285,98 +283,109 @@ def upload_profile_pic():
 
 @app.route('/edit_student', methods=['POST'])
 def edit_student():
-    df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str, 'Password': str, 'Profile_Pic': str})
-    df.loc[df['Roll_No'] == str(request.form.get('roll_no')), ['Name', 'Course', 'Password']] = [request.form.get('name'), request.form.get('course'), request.form.get('password')]
-    safe_write_csv(df, 'students.csv')
+    rows = safe_read_rows('students.csv', DATABASES['students.csv'])
+    for r in rows:
+        if r.get('Roll_No') == str(request.form.get('roll_no')):
+            r['Name'] = request.form.get('name')
+            r['Course'] = request.form.get('course')
+            r['Password'] = request.form.get('password')
+    safe_write_rows(rows, 'students.csv', DATABASES['students.csv'])
     return redirect(url_for('index', active_tab='admin_students'))
 
 @app.route('/add_student', methods=['POST'])
 def add_student():
-    roll_no, name, course, password = request.form.get('roll_no'), request.form.get('name'), request.form.get('course'), request.form.get('password', '12345')
-    df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str})
-    
-    exists = False
-    if not df.empty and str(roll_no) in df['Roll_No'].values:
-        exists = True
-        
-    if not exists:
-        df = pd.concat([df, pd.DataFrame([{'Roll_No': str(roll_no), 'Name': name, 'Course': course, 'Password': str(password), 'Profile_Pic': ''}])], ignore_index=True)
-        safe_write_csv(df, 'students.csv')
+    roll_no = request.form.get('roll_no')
+    rows = safe_read_rows('students.csv', DATABASES['students.csv'])
+    if not any(r.get('Roll_No') == str(roll_no) for r in rows):
+        rows.append({
+            'Roll_No': str(roll_no), 'Name': request.form.get('name'), 'Course': request.form.get('course'),
+            'Password': str(request.form.get('password', '12345')), 'Profile_Pic': ''
+        })
+        safe_write_rows(rows, 'students.csv', DATABASES['students.csv'])
     return redirect(url_for('index', active_tab='admin_students'))
 
 @app.route('/delete_student/<roll_no>')
 def delete_student(roll_no):
-    df = safe_read_csv('students.csv', ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'], {'Roll_No': str})
-    if not df.empty:
-        df = df[df['Roll_No'] != str(roll_no)]
-        safe_write_csv(df, 'students.csv')
+    rows = safe_read_rows('students.csv', DATABASES['students.csv'])
+    rows = [r for r in rows if r.get('Roll_No') != str(roll_no)]
+    safe_write_rows(rows, 'students.csv', DATABASES['students.csv'])
     return redirect(url_for('index', active_tab='admin_students'))
 
 @app.route('/edit_staff', methods=['POST'])
 def edit_staff():
-    df = safe_read_csv('staff.csv', ['Emp_ID', 'Name', 'Department'])
-    df.loc[df['Emp_ID'] == str(request.form.get('emp_id')), ['Name', 'Department']] = [request.form.get('name'), request.form.get('department')]
-    safe_write_csv(df, 'staff.csv')
+    rows = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    for r in rows:
+        if r.get('Emp_ID') == str(request.form.get('emp_id')):
+            r['Name'] = request.form.get('name')
+            r['Department'] = request.form.get('department')
+    safe_write_rows(rows, 'staff.csv', DATABASES['staff.csv'])
     return redirect(url_for('index', active_tab='admin_staff'))
 
 @app.route('/add_staff', methods=['POST'])
 def add_staff():
-    df = safe_read_csv('staff.csv', ['Emp_ID', 'Name', 'Department'])
-    if df.empty or str(request.form.get('emp_id')) not in df['Emp_ID'].values:
-        df = pd.concat([df, pd.DataFrame([{'Emp_ID': str(request.form.get('emp_id')), 'Name': request.form.get('name'), 'Department': request.form.get('department')}])], ignore_index=True)
-        safe_write_csv(df, 'staff.csv')
+    rows = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    if not any(r.get('Emp_ID') == str(request.form.get('emp_id')) for r in rows):
+        rows.append({'Emp_ID': str(request.form.get('emp_id')), 'Name': request.form.get('name'), 'Department': request.form.get('department')})
+        safe_write_rows(rows, 'staff.csv', DATABASES['staff.csv'])
     return redirect(url_for('index', active_tab='admin_staff'))
 
 @app.route('/delete_staff/<emp_id>')
 def delete_staff(emp_id):
-    df = safe_read_csv('staff.csv', ['Emp_ID', 'Name', 'Department'])
-    if not df.empty:
-        df = df[df['Emp_ID'] != str(emp_id)]
-        safe_write_csv(df, 'staff.csv')
+    rows = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    rows = [r for r in rows if r.get('Emp_ID') != str(emp_id)]
+    safe_write_rows(rows, 'staff.csv', DATABASES['staff.csv'])
     return redirect(url_for('index', active_tab='admin_staff'))
 
 @app.route('/edit_timetable', methods=['POST'])
 def edit_timetable():
-    df = safe_read_csv('timetable.csv', ['ID', 'Day', 'Time', 'Subject', 'Teacher'])
-    df.loc[df['ID'] == str(request.form.get('id')), ['Day', 'Time', 'Subject', 'Teacher']] = [request.form.get('day'), request.form.get('time'), request.form.get('subject'), request.form.get('teacher')]
-    safe_write_csv(df, 'timetable.csv')
+    rows = safe_read_rows('timetable.csv', DATABASES['timetable.csv'])
+    for r in rows:
+        if r.get('ID') == str(request.form.get('id')):
+            r['Day'] = request.form.get('day')
+            r['Time'] = request.form.get('time')
+            r['Subject'] = request.form.get('subject')
+            r['Teacher'] = request.form.get('teacher')
+    safe_write_rows(rows, 'timetable.csv', DATABASES['timetable.csv'])
     return redirect(url_for('index', active_tab='admin_timetable'))
 
 @app.route('/add_timetable', methods=['POST'])
 def add_timetable():
-    df = safe_read_csv('timetable.csv', ['ID', 'Day', 'Time', 'Subject', 'Teacher'])
-    df = pd.concat([df, pd.DataFrame([{'ID': str(int(time.time())), 'Day': request.form.get('day'), 'Time': request.form.get('time'), 'Subject': request.form.get('subject'), 'Teacher': request.form.get('teacher')}])], ignore_index=True)
-    safe_write_csv(df, 'timetable.csv')
+    rows = safe_read_rows('timetable.csv', DATABASES['timetable.csv'])
+    rows.append({'ID': str(int(time.time())), 'Day': request.form.get('day'), 'Time': request.form.get('time'), 'Subject': request.form.get('subject'), 'Teacher': request.form.get('teacher')})
+    safe_write_rows(rows, 'timetable.csv', DATABASES['timetable.csv'])
     return redirect(url_for('index', active_tab='admin_timetable'))
 
 @app.route('/delete_timetable/<entry_id>')
 def delete_timetable(entry_id):
-    df = safe_read_csv('timetable.csv', ['ID', 'Day', 'Time', 'Subject', 'Teacher'])
-    if not df.empty:
-        df = df[df['ID'] != str(entry_id)]
-        safe_write_csv(df, 'timetable.csv')
+    rows = safe_read_rows('timetable.csv', DATABASES['timetable.csv'])
+    rows = [r for r in rows if r.get('ID') != str(entry_id)]
+    safe_write_rows(rows, 'timetable.csv', DATABASES['timetable.csv'])
     return redirect(url_for('index', active_tab='admin_timetable'))
 
 @app.route('/edit_assignment', methods=['POST'])
 def edit_assignment():
-    df = safe_read_csv('assignments.csv', ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'])
-    df.loc[df['ID'] == str(request.form.get('id')), ['Subject', 'Teacher', 'Deadline', 'Question']] = [request.form.get('subject'), request.form.get('teacher'), request.form.get('deadline'), request.form.get('question')]
-    safe_write_csv(df, 'assignments.csv')
+    rows = safe_read_rows('assignments.csv', DATABASES['assignments.csv'])
+    for r in rows:
+        if r.get('ID') == str(request.form.get('id')):
+            r['Subject'] = request.form.get('subject')
+            r['Teacher'] = request.form.get('teacher')
+            r['Deadline'] = request.form.get('deadline')
+            r['Question'] = request.form.get('question')
+    safe_write_rows(rows, 'assignments.csv', DATABASES['assignments.csv'])
     return redirect(url_for('index', active_tab='admin_assignments'))
 
 @app.route('/add_assignment', methods=['POST'])
 def add_assignment():
-    df = safe_read_csv('assignments.csv', ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'])
-    df = pd.concat([df, pd.DataFrame([{'ID': str(int(time.time())), 'Subject': request.form.get('subject'), 'Teacher': request.form.get('teacher'), 'Deadline': request.form.get('deadline'), 'Question': request.form.get('question')}])], ignore_index=True)
-    safe_write_csv(df, 'assignments.csv')
+    rows = safe_read_rows('assignments.csv', DATABASES['assignments.csv'])
+    rows.append({'ID': str(int(time.time())), 'Subject': request.form.get('subject'), 'Teacher': request.form.get('teacher'), 'Deadline': request.form.get('deadline'), 'Question': request.form.get('question')})
+    safe_write_rows(rows, 'assignments.csv', DATABASES['assignments.csv'])
     return redirect(url_for('index', active_tab='admin_assignments'))
 
 @app.route('/delete_assignment/<entry_id>')
 def delete_assignment(entry_id):
-    df = safe_read_csv('assignments.csv', ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'])
-    if not df.empty:
-        df = df[df['ID'] != str(entry_id)]
-        safe_write_csv(df, 'assignments.csv')
+    rows = safe_read_rows('assignments.csv', DATABASES['assignments.csv'])
+    rows = [r for r in rows if r.get('ID') != str(entry_id)]
+    safe_write_rows(rows, 'assignments.csv', DATABASES['assignments.csv'])
     return redirect(url_for('index', active_tab='admin_assignments'))
 
 if __name__ == '__main__':
