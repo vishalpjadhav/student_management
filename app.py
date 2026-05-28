@@ -8,7 +8,6 @@ from werkzeug.utils import secure_filename
 import shutil
 
 app = Flask(__name__)
-# CRUCIAL: Enables cookie generation encryption to lock users out of tweaking their profile variables
 app.secret_key = 'institutional_grade_high_security_key_string_hash_encoder'
 
 # --- SMART PATH CHECKER FOR WINDOWS vs RENDER ---
@@ -20,7 +19,8 @@ if IS_RENDER:
     
     DATABASES = {
         'students.csv': ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'],
-        'staff.csv': ['Emp_ID', 'Name', 'Department'],
+        # Added Password column to staff dataset framework
+        'staff.csv': ['Emp_ID', 'Name', 'Department', 'Password'],
         'timetable.csv': ['ID', 'Day', 'Time', 'Subject', 'Teacher'],
         'assignments.csv': ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'],
         'attendance.csv': ['Roll_No', 'Date', 'Status'],
@@ -44,7 +44,7 @@ else:
     UPLOAD_FOLDER = 'static/uploads/'
     DATABASES = {
         'students.csv': ['Roll_No', 'Name', 'Course', 'Password', 'Profile_Pic'],
-        'staff.csv': ['Emp_ID', 'Name', 'Department'],
+        'staff.csv': ['Emp_ID', 'Name', 'Department', 'Password'],
         'timetable.csv': ['ID', 'Day', 'Time', 'Subject', 'Teacher'],
         'assignments.csv': ['ID', 'Subject', 'Teacher', 'Deadline', 'Question'],
         'attendance.csv': ['Roll_No', 'Date', 'Status'],
@@ -113,17 +113,26 @@ def login_page():
             return redirect(url_for('index'))
         return render_template('login.html', error=None)
         
-    # POST Authentication Sequence Handler
     username = request.form.get('username','').strip()
     password = request.form.get('password','').strip()
     login_type = request.form.get('login_type')
     
     if login_type == 'staff':
+        # Master system administrator bypass fallback
         if username == 'admin' and password == 'admin123':
             session['role'] = 'staff'
-            session['user_id'] = 'Faculty Administration'
+            session['user_id'] = 'Admin Setup Account'
             return redirect(url_for('index', active_tab='admin_students'))
-        return render_template('login.html', error="Invalid Faculty Admin Credentials")
+            
+        # Check dynamic registered staff database entries
+        rows = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+        target_faculty = next((r for r in rows if r.get('Emp_ID') == str(username)), None)
+        
+        if target_faculty and str(target_faculty.get('Password')) == str(password):
+            session['role'] = 'staff'
+            session['user_id'] = target_faculty.get('Name')
+            return redirect(url_for('index', active_tab='admin_students'))
+        return render_template('login.html', error="Invalid Faculty Credentials or Password")
         
     elif login_type == 'student':
         rows = safe_read_rows('students.csv', DATABASES['students.csv'])
@@ -135,12 +144,39 @@ def login_page():
             return redirect(url_for('index', active_tab='student_portal'))
         return render_template('login.html', error="Invalid Student Roll Identity or Password Code")
 
+# ================= NEW: FACULTY REGISTRATION CONTROLLER =================
+@app.route('/register_faculty', methods=['GET', 'POST'])
+def register_faculty():
+    if request.method == 'GET':
+        return render_template('register_faculty.html', error=None, success=None)
+        
+    emp_id = request.form.get('emp_id','').strip()
+    name = request.form.get('name','').strip()
+    department = request.form.get('department','').strip()
+    password = request.form.get('password','').strip()
+    
+    rows = safe_read_rows('staff.csv', DATABASES['staff.csv'])
+    
+    # Check if the Employee ID is already registered
+    if any(r.get('Emp_ID') == str(emp_id) for r in rows) or emp_id.lower() == 'admin':
+        return render_template('register_faculty.html', error="Employee ID is already registered.", success=None)
+        
+    # Append the new faculty profile details directly to the CSV file array structure
+    rows.append({
+        'Emp_ID': str(emp_id),
+        'Name': name,
+        'Department': department,
+        'Password': str(password)
+    })
+    safe_write_rows(rows, 'staff.csv', DATABASES['staff.csv'])
+    return render_template('register_faculty.html', error=None, success="Account registered successfully! You can now log in.")
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login_page'))
 
-# ================= CORE CORE ROOT DASHBOARD ROUTE =================
+# ================= CORE ROOT DASHBOARD ROUTE =================
 @app.route('/')
 def index():
     if 'role' not in session:
@@ -158,7 +194,6 @@ def index():
     selected_month = int(request.args.get('month', now.month))
     selected_year = int(request.args.get('year', now.year))
     
-    # Enforce strict default route views depending on user category context
     default_tab = 'admin_students' if is_staff else 'student_portal'
     active_tab = request.args.get('active_tab', default_tab)
     
@@ -191,17 +226,12 @@ def index():
         attendance_map=attendance_map, holidays_list=holidays_list
     )
 
-# ================= BACKEND SECURITY GUARDS (RESTRICT DATA ACCESS ROUTINGS) =================
+# ================= BACKEND SECURITY GUARDS =================
 @app.route('/toggle_attendance', methods=['POST'])
 def toggle_attendance():
-    if session.get('role') != 'staff':
-        return jsonify({'success': False, 'msg': 'Unauthorized Role Access Blocked'}), 403
-        
-    roll_no = request.form.get('roll_no')
-    date = request.form.get('date')
-    status = int(request.form.get('status', 0))
-    month = int(request.form.get('month'))
-    year = int(request.form.get('year'))
+    if session.get('role') != 'staff': return jsonify({'success': False}), 403
+    roll_no, date = request.form.get('roll_no'), request.form.get('date')
+    status, month, year = int(request.form.get('status', 0)), int(request.form.get('month')), int(request.form.get('year'))
 
     rows = safe_read_rows('attendance.csv', DATABASES['attendance.csv'])
     filtered_rows = [r for r in rows if not (r.get('Roll_No') == str(roll_no) and r.get('Date') == str(date))]
@@ -215,7 +245,7 @@ def toggle_attendance():
 
 @app.route('/add_student', methods=['POST'])
 def add_student():
-    if session.get('role') != 'staff': return "Unauthorized Operation Guard constraint activated.", 403
+    if session.get('role') != 'staff': return "Unauthorized", 403
     roll_no = request.form.get('roll_no')
     rows = safe_read_rows('students.csv', DATABASES['students.csv'])
     if not any(r.get('Roll_No') == str(roll_no) for r in rows):
@@ -225,7 +255,7 @@ def add_student():
 
 @app.route('/delete_student/<roll_no>')
 def delete_student(roll_no):
-    if session.get('role') != 'staff': return "Unauthorized Operation", 403
+    if session.get('role') != 'staff': return "Unauthorized", 403
     rows = safe_read_rows('students.csv', DATABASES['students.csv'])
     safe_write_rows([r for r in rows if r.get('Roll_No') != str(roll_no)], 'students.csv', DATABASES['students.csv'])
     return redirect(url_for('index', active_tab='admin_students'))
@@ -276,7 +306,7 @@ def add_staff():
     if session.get('role') != 'staff': return "Unauthorized", 403
     rows = safe_read_rows('staff.csv', DATABASES['staff.csv'])
     if not any(r.get('Emp_ID') == str(request.form.get('emp_id')) for r in rows):
-        rows.append({'Emp_ID': str(request.form.get('emp_id')), 'Name': request.form.get('name'), 'Department': request.form.get('department')})
+        rows.append({'Emp_ID': str(request.form.get('emp_id')), 'Name': request.form.get('name'), 'Department': request.form.get('department'), 'Password': str(request.form.get('password', '12345'))})
         safe_write_rows(rows, 'staff.csv', DATABASES['staff.csv'])
     return redirect(url_for('index', active_tab='admin_staff'))
 
@@ -294,8 +324,6 @@ def upload_profile_pic():
     file = request.files.get('profile_image')
     if file and allowed_file(file.filename):
         filename = secure_filename(f"avatar_{roll_no}_{int(time.time())}.{file.filename.rsplit('.', 1)[1].lower()}")
-        
-        # Save image securely inside the writable folder structure context environment
         if IS_RENDER:
             render_upload_path = '/opt/render/project/src/data/static/uploads/'
             os.makedirs(render_upload_path, exist_ok=True)
