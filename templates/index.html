@@ -3,556 +3,336 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>College Management System</title>
+    <title>EduCore - College Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        :root {
-            --primary: #2c3e50;
-            --secondary: #3498db;
-            --success: #27ae60;
-            --warning: #f39c12;
-            --danger: #e74c3c;
-            --bg: #ecf0f1;
-            --holiday-color: #fadbd8;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg);
-            color: #333;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        h1 { text-align: center; color: var(--primary); font-size: 2.5em; margin-bottom: 30px;}
-        
-        .tabs {
-            display: flex; justify-content: center; margin-bottom: 25px;
-            background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden;
-        }
-        .tab-btn {
-            background: none; border: none; color: #555; padding: 18px 25px; font-size: 16px; 
-            font-weight: 600; cursor: pointer; flex: 1; transition: 0.3s;
-        }
-        .tab-btn:hover { background-color: #f8f9fa; color: var(--secondary); }
-        .tab-btn.active { background-color: var(--secondary); color: white; }
-        
-        .tab-content { display: none; animation: fadeIn 0.4s ease-in-out; }
-        .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .form-container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
-        .form-row { display: flex; gap: 20px; margin-bottom: 15px; align-items: flex-end;}
-        .form-group { flex: 1; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: #555;}
-        input, select, textarea {
-            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: inherit;
-        }
-        button[type="submit"] {
-            background-color: var(--success); color: white; border: none; padding: 14px; border-radius: 6px; 
-            cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; transition: 0.2s;
-        }
-        button[type="submit"]:hover { opacity: 0.9; transform: scale(0.99); }
-        
-        .table-responsive {
-            width: 100%; overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 15px;
-        }
-        table { width: 100%; border-collapse: collapse; min-width: 600px; }
-        th, td { padding: 12px 15px; border-bottom: 1px solid #eee; text-align: center; }
-        th { background-color: var(--primary); color: white; font-weight: 600; }
-        
-        .btn-action { color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold; border: none; cursor: pointer; display: inline-block; margin: 2px; }
-        .edit-btn { background-color: var(--warning); }
-        .delete-btn { background-color: var(--danger); }
-        
-        .calendar-header {
-            display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);
-        }
-        .day-header { font-size: 11px; min-width: 45px; cursor: pointer; transition: 0.2s; background-color: #34495e !important; }
-        .day-header:hover { background-color: var(--secondary) !important; }
-        .day-header.holiday { background-color: var(--danger) !important; color: white; }
-        
-        /* Holiday cell rendering style modifications */
-        td.holiday-cell { background-color: var(--holiday-color); color: #c0392b; font-weight: bold; font-size: 12px; }
-        .attendance-cb { transform: scale(1.3); cursor: pointer; }
-        .attendance-cb:disabled { opacity: 0.4; cursor: not-allowed; }
-        
-        .dashboard-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .card h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
-        .attendance-circle { 
-            width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(var(--success) var(--percent), #ddd 0deg);
-            display: flex; align-items: center; justify-content: center; margin: 20px auto; font-size: 24px; font-weight: bold; color: var(--primary);
-        }
-
-        .profile-avatar-container { text-align: center; position: relative; margin-bottom: 15px; }
-        .profile-avatar { width: 110px; height: 110px; border-radius: 50%; border: 3px solid var(--primary); object-fit: cover; background-color: #eee; }
-        .mini-upload-lbl { display: block; font-size: 12px; color: var(--secondary); cursor: pointer; margin-top: 5px; font-weight: bold; text-decoration: underline; }
-
-        .modal {
-            display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; 
-            overflow: auto; background-color: rgba(0,0,0,0.5); padding-top: 60px;
-        }
-        .modal-content {
-            background-color: #fff; margin: 5% auto; padding: 30px; border-radius: 12px; width: 50%; 
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2); animation: zoomIn 0.3s ease-out;
-        }
-        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .close-modal:hover { color: #000; }
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar-brand { font-weight: bold; color: #0d6efd !important; }
+        .sidebar { background: white; border-right: 1px solid #dee2e6; min-height: calc(100vh - 56px); }
+        .nav-link { color: #495057; font-weight: 500; border-radius: 5px; margin-bottom: 5px; }
+        .nav-link.active { background-color: #0d6efd !important; color: white !important; }
+        .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 10px; }
+        .table-container { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .attendance-cell { min-width: 45px; text-align: center; }
+        .holiday-cell { background-color: #ffeef0 !important; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <h1>EduCore Management System</h1>
-
-    <div class="tabs">
-        <button class="tab-btn" id="btn-admin_students" onclick="openTab('admin_students', this)">👨‍🎓 Staff: Attendance Sheet</button>
-        <button class="tab-btn" id="btn-admin_staff" onclick="openTab('admin_staff', this)">👨‍🏫 Admin: Staff</button>
-        <button class="tab-btn" id="btn-admin_timetable" onclick="openTab('admin_timetable', this)">📅 Admin: Timetable</button>
-        <button class="tab-btn" id="btn-admin_assignments" onclick="openTab('admin_assignments', this)">📝 Admin: Assignments</button>
-        <button class="tab-btn" id="btn-student_portal" onclick="openTab('student_portal', this)" style="background-color: #2c3e50; color:white;">🎓 Student Portal</button>
-    </div>
-
-    <div id="admin_students" class="tab-content">
-        <div class="form-container">
-            <h2>Register New Student</h2>
-            <form action="/add_student" method="POST">
-                <div class="form-row">
-                    <div class="form-group"><label>Roll Number</label><input type="number" name="roll_no" required></div>
-                    <div class="form-group"><label>Full Name</label><input type="text" name="name" required></div>
-                    <div class="form-group"><label>Course/Branch</label><input type="text" name="course" required></div>
-                    <div class="form-group"><label>Portal Password</label><input type="password" name="password" placeholder="e.g. 12345" required></div>
-                </div>
-                <button type="submit">+ Register Student</button>
-            </form>
-        </div>
-
-        <div class="calendar-header">
-            <div>
-                <h3>Attendance Sheet — <u>{{ month_name }} {{ selected_year }}</u></h3>
-                <small style="color:var(--secondary); font-weight:bold;">💡 Tip: Click any date header digit to toggle Holiday state.</small>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">🎓 EduCore</a>
+            <div class="d-flex align-items-center">
+                <span class="me-3 text-secondary">Logged in as: <strong>{{ session.get('user_id') }}</strong> ({{ session.get('role').upper() }})</span>
+                <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
             </div>
-            <form method="GET" action="/" style="display: flex; gap: 10px; align-items: center;">
-                <input type="hidden" name="active_tab" value="admin_students">
-                <select name="month" style="width: 140px; padding: 8px;">
-                    <option value="1" {% if selected_month == 1 %}selected{% endif %}>January</option>
-                    <option value="2" {% if selected_month == 2 %}selected{% endif %}>February</option>
-                    <option value="3" {% if selected_month == 3 %}selected{% endif %}>March</option>
-                    <option value="4" {% if selected_month == 4 %}selected{% endif %}>April</option>
-                    <option value="5" {% if selected_month == 5 %}selected{% endif %}>May</option>
-                    <option value="6" {% if selected_month == 6 %}selected{% endif %}>June</option>
-                    <option value="7" {% if selected_month == 7 %}selected{% endif %}>July</option>
-                    <option value="8" {% if selected_month == 8 %}selected{% endif %}>August</option>
-                    <option value="9" {% if selected_month == 9 %}selected{% endif %}>September</option>
-                    <option value="10" {% if selected_month == 10 %}selected{% endif %}>October</option>
-                    <option value="11" {% if selected_month == 11 %}selected{% endif %}>November</option>
-                    <option value="12" {% if selected_month == 12 %}selected{% endif %}>December</option>
-                </select>
-                <select name="year" style="width: 100px; padding: 8px;">
-                    <option value="2026" {% if selected_year == 2026 %}selected{% endif %}>2026</option>
-                    <option value="2027" {% if selected_year == 2027 %}selected{% endif %}>2027</option>
-                </select>
-                <button type="submit" style="background: var(--secondary); color: white; padding: 8px 15px; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Go</button>
-            </form>
         </div>
+    </nav>
 
-        <div class="table-responsive">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="text-align: left; position: sticky; left: 0; background: var(--primary); z-index: 2;">Student Details</th>
-                        <th>Summary %</th>
-                        {% for date_str in days_list %}
-                            {% set is_holiday = date_str in holidays_list %}
-                            <th class="day-header {% if is_holiday %}holiday{% endif %}" onclick="toggleHolidayState('{{ date_str }}')">
-                                {{ date_str.split('-')[2] }}
-                                {% if is_holiday %}<div style="font-size:9px;color:#ffcad4;">HOLIDAY</div>{% endif %}
-                            </th>
-                        {% endfor %}
-                        <th>Action Buttons</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for student in students %}
-                    <tr>
-                        <td style="text-align: left; font-size: 14px; position: sticky; left: 0; background: white; box-shadow: 2px 0 5px rgba(0,0,0,0.05); white-space: nowrap;">
-                            {% if student.Profile_Pic %}
-                                <img src="/static/uploads/{{ student.Profile_Pic }}" style="width:32px; height:32px; border-radius:50%; vertical-align:middle; margin-right:8px; object-fit:cover;">
-                            {% else %}
-                                <span style="width:32px; height:32px; display:inline-block; border-radius:50%; background:#ccc; text-align:center; line-height:32px; font-size:12px; margin-right:8px;">👤</span>
-                            {% endif %}
-                            <div style="display:inline-block; vertical-align:middle;">
-                                <strong>{{ student.Name }}</strong><br>
-                                <span style="color:#777; font-size:11px;">Roll: {{ student.Roll_No }} | {{ student.Course }}</span>
-                            </div>
-                        </td>
-                        <td>
-                            <span id="pct-{{ student.Roll_No }}" style="font-weight: bold; color: var(--success);">{{ student.Attendance_Percent }}%</span><br>
-                            <small id="count-{{ student.Roll_No }}" style="color: #666;">({{ student.Attended }}/{{ student.Total_Classes }} open days)</small>
-                        </td>
-                        {% for date_str in days_list %}
-                            {% set is_holiday = date_str in holidays_list %}
-                            {% if is_holiday %}
-                                <td class="holiday-cell">H</td>
-                            {% else %}
-                                <td>
-                                    {% set is_present = attendance_map.get((student.Roll_No|string, date_str|string), 0) %}
-                                    <input type="checkbox" class="attendance-cb" 
-                                           {% if is_present == 1 %}checked{% endif %} 
-                                           onchange="saveAttendanceInBackground('{{ student.Roll_No }}', '{{ date_str }}', this);">
-                                </td>
-                            {% endif %}
-                        {% endfor %}
-                        <td>
-                            <button class="btn-action edit-btn" onclick="showStudentModal('{{ student.Roll_No }}', '{{ student.Name }}', '{{ student.Course }}', '{{ student.Password }}')">Edit</button>
-                            <a href="/delete_student/{{ student.Roll_No }}" class="btn-action delete-btn">Remove</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <form id="holidayForm" action="/toggle_holiday" method="POST" style="display:none;">
-        <input type="hidden" id="holiday_date" name="date">
-        <input type="hidden" name="month" value="{{ selected_month }}">
-        <input type="hidden" name="year" value="{{ selected_year }}">
-    </form>
-
-    <div id="admin_staff" class="tab-content">
-        <div class="form-container">
-            <h2>Add Staff Member</h2>
-            <form action="/add_staff" method="POST">
-                <div class="form-row">
-                    <div class="form-group"><label>Employee ID</label><input type="text" name="emp_id" required></div>
-                    <div class="form-group"><label>Name</label><input type="text" name="name" required></div>
-                    <div class="form-group"><label>Department</label><input type="text" name="department" required></div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 p-3 sidebar">
+                <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+                    
+                    {% if is_staff %}
+                    <a class="nav-link {% if active_tab == 'admin_students' %}active{% endif %}" href="?active_tab=admin_students">👥 Student Roster & Attendance</a>
+                    <a class="nav-link {% if active_tab == 'admin_staff' %}active{% endif %}" href="?active_tab=admin_staff">👔 Faculty Records</a>
+                    <a class="nav-link {% if active_tab == 'admin_timetable' %}active{% endif %}" href="?active_tab=admin_timetable">📅 Manage Timetable</a>
+                    <a class="nav-link {% if active_tab == 'admin_assignments' %}active{% endif %}" href="?active_tab=admin_assignments">📝 Manage Assignments</a>
+                    {% else %}
+                    <a class="nav-link {% if active_tab == 'student_portal' %}active{% endif %}" href="?active_tab=student_portal">🏠 My Dashboard</a>
+                    <a class="nav-link {% if active_tab == 'student_timetable' %}active{% endif %}" href="?active_tab=student_timetable">📅 Class Timetable</a>
+                    <a class="nav-link {% if active_tab == 'student_assignments' %}active{% endif %}" href="?active_tab=student_assignments">📝 Assignments & Tasks</a>
+                    {% endif %}
+                    
                 </div>
-                <button type="submit" style="background-color: var(--secondary);">+ Add Staff</button>
-            </form>
-        </div>
-        <div class="table-responsive">
-            <table>
-                <tr><th>Emp ID</th><th>Name</th><th>Department</th><th>Action</th></tr>
-                {% for s in staff %}
-                <tr>
-                    <td>{{ s.Emp_ID }}</td>
-                    <td><strong>{{ s.Name }}</strong></td>
-                    <td>{{ s.Department }}</td>
-                    <td>
-                        <button class="btn-action edit-btn" onclick="showStaffModal('{{ s.Emp_ID }}', '{{ s.Name }}', '{{ s.Department }}')">Edit</button>
-                        <a href="/delete_staff/{{ s.Emp_ID }}" class="btn-action delete-btn">Delete</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-    </div>
+            </div>
 
-    <div id="admin_timetable" class="tab-content">
-        <div class="form-container">
-            <h2>Schedule Class</h2>
-            <form action="/add_timetable" method="POST">
-                <div class="form-row">
-                    <div class="form-group"><label>Day</label>
-                        <select name="day" required>
-                            <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label>Time Slot</label><input type="text" name="time" placeholder="e.g. 10:00 AM - 11:00 AM" required></div>
+            <div class="col-md-10 p-4">
+                
+                {% if active_tab == 'admin_students' and is_staff %}
+                <div class="card p-4 mb-4">
+                    <h4>Add New Student Record</h4>
+                    <form action="/add_student" method="POST" class="row g-3">
+                        <div class="col-md-3"><input type="text" name="roll_no" class="form-control" placeholder="Roll No" required></div>
+                        <div class="col-md-3"><input type="text" name="name" class="form-control" placeholder="Full Name" required></div>
+                        <div class="col-md-3"><input type="text" name="course" class="form-control" placeholder="Course/Class" required></div>
+                        <div class="col-md-2"><input type="password" name="password" class="form-control" placeholder="Login Password" value="12345"></div>
+                        <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">Add</button></div>
+                    </form>
                 </div>
-                <div class="form-row">
-                    <div class="form-group"><label>Subject</label><input type="text" name="subject" required></div>
-                    <div class="form-group"><label>Teacher</label><input type="text" name="teacher" required></div>
-                </div>
-                <button type="submit" style="background-color: #8e44ad;">+ Add to Schedule</button>
-            </form>
-        </div>
-        <div class="table-responsive">
-            <table>
-                <tr><th>Day</th><th>Time</th><th>Subject</th><th>Teacher</th><th>Action</th></tr>
-                {% for t in timetable %}
-                <tr>
-                    <td><strong>{{ t.Day }}</strong></td>
-                    <td>{{ t.Time }}</td>
-                    <td>{{ t.Subject }}</td>
-                    <td>{{ t.Teacher }}</td>
-                    <td>
-                        <button class="btn-action edit-btn" onclick="showTimetableModal('{{ t.ID }}', '{{ t.Day }}', '{{ t.Time }}', '{{ t.Subject }}', '{{ t.Teacher }}')">Edit</button>
-                        <a href="/delete_timetable/{{ t.ID }}" class="btn-action delete-btn">Delete</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-    </div>
 
-    <div id="admin_assignments" class="tab-content">
-        <div class="form-container">
-            <h2>Post Assignment</h2>
-            <form action="/add_assignment" method="POST">
-                <div class="form-row">
-                    <div class="form-group"><label>Subject</label><input type="text" name="subject" required></div>
-                    <div class="form-group"><label>Teacher</label><input type="text" name="teacher" required></div>
-                    <div class="form-group"><label>Deadline</label><input type="date" name="deadline" required></div>
-                </div>
-                <div class="form-group"><label>Instructions / Questions</label><textarea name="question" rows="3" required></textarea></div>
-                <button type="submit" style="background-color: #d35400;">+ Post Assignment</button>
-            </form>
-        </div>
-        <div class="table-responsive">
-            <table>
-                <tr><th>Subject</th><th>Teacher</th><th>Deadline</th><th>Question Sheet</th><th>Action</th></tr>
-                {% for a in assignments %}
-                <tr>
-                    <td><strong>{{ a.Subject }}</strong></td>
-                    <td>{{ a.Teacher }}</td>
-                    <td style="color:var(--danger); font-weight:bold;">{{ a.Deadline }}</td>
-                    <td style="text-align: left; max-width: 300px;">{{ a.Question }}</td>
-                    <td>
-                        <button class="btn-action edit-btn" onclick="showAssignmentModal('{{ a.ID }}', '{{ a.Subject }}', '{{ a.Teacher }}', '{{ a.Deadline }}', '{{ a.Question }}')">Edit</button>
-                        <a href="/delete_assignment/{{ a.ID }}" class="btn-action delete-btn">Delete</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-    </div>
-
-    <div id="student_portal" class="tab-content">
-        <div class="form-container" style="max-width: 500px; margin: 0 auto 30px;">
-            <h2 style="text-align:center;">Student Login</h2>
-            {% if login_error %}
-                <p style="color:var(--danger); font-weight:bold; text-align:center;">{{ login_error }}</p>
-            {% endif %}
-            <form action="/student_login" method="POST">
-                <div class="form-group" style="margin-bottom:12px;"><label>Roll Number</label><input type="number" name="login_roll_no" placeholder="Enter Roll Number" required></div>
-                <div class="form-group" style="margin-bottom:18px;"><label>Account Password</label><input type="password" name="login_password" placeholder="Enter Password" required></div>
-                <button type="submit" style="background-color: var(--primary);">Login Dashboard</button>
-            </form>
-        </div>
-
-        {% if current_student %}
-        <div class="dashboard-grid">
-            <div>
-                <div class="card" style="margin-bottom: 20px;">
-                    <h3>Your Profile Card</h3>
-                    <div class="profile-avatar-container">
-                        {% if current_student.Profile_Pic %}
-                            <img src="/static/uploads/{{ current_student.Profile_Pic }}" class="profile-avatar">
-                        {% else %}
-                            <div class="profile-avatar" style="line-height:110px; font-size:50px; margin:0 auto;">👤</div>
-                        {% endif %}
-                        <form id="avatarForm" action="/upload_profile_pic" method="POST" enctype="multipart/form-data" style="margin:0;">
-                            <input type="hidden" name="roll_no" value="{{ current_student.Roll_No }}">
-                            <label for="file_input" class="mini-upload-lbl">Change Photo</label>
-                            <input type="file" id="file_input" name="profile_image" style="display:none;" onchange="document.getElementById('avatarForm').submit();">
+                <div class="table-container">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4>Attendance & Roster Sheet Matrix</h4>
+                        <form method="GET" class="d-flex gap-2">
+                            <input type="hidden" name="active_tab" value="admin_students">
+                            <select name="month" class="form-select form-select-sm" onchange="this.form.submit()">
+                                {% for m in range(1, 13) %}
+                                <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+                                {% endfor %}
+                            </select>
+                            <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="2026" {% if selected_year == 2026 %}selected{% endif %}>2026</option>
+                                <option value="2027" {% if selected_year == 2027 %}selected{% endif %}>2027</option>
+                            </select>
                         </form>
                     </div>
-                    <p><strong>Name:</strong> {{ current_student.Name }}</p>
-                    <p><strong>Roll No:</strong> {{ current_student.Roll_No }}</p>
-                    <p><strong>Course:</strong> {{ current_student.Course }}</p>
-                </div>
-                <div class="card" style="text-align: center;">
-                    <h3>Attendance Percentage</h3>
-                    <div class="attendance-circle" style="--percent: {{ current_student.Attendance_Percent }}%;">
-                        <div style="background: white; width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                            {{ current_student.Attendance_Percent }}%
-                        </div>
-                    </div>
-                    <p style="color:#555; font-size:14px; margin-top:10px;">
-                        Total Active College Days: <strong>{{ current_student.Total_Classes }}</strong><br>
-                        Attended Days: <strong style="color:var(--success);">{{ current_student.Attended }}</strong>
-                    </p>
-                </div>
-            </div>
 
-            <div>
-                <div class="card" style="margin-bottom: 20px;">
-                    <h3>Pending Assignments</h3>
-                    <ul style="padding-left: 20px;">
-                        {% for a in assignments %}
-                            <li style="margin-bottom: 10px;">
-                                <strong>{{ a.Subject }}</strong> (Due: <span style="color:var(--danger);">{{ a.Deadline }}</span>)<br>
-                                <span style="font-size: 14px; color: #666;">{{ a.Question }}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                <div class="card">
-                    <h3>Your Timetable</h3>
                     <div class="table-responsive">
-                        <table style="box-shadow: none;">
-                            <tr><th>Day</th><th>Time</th><th>Subject</th></tr>
-                            {% for t in timetable %}
-                            <tr><td>{{ t.Day }}</td><td>{{ t.Time }}</td><td>{{ t.Subject }}</td></tr>
-                            {% endfor %}
+                        <table class="table table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Roll No</th>
+                                    <th>Name</th>
+                                    <th>Course</th>
+                                    <th>Attendance %</th>
+                                    {% for day in days_list %}
+                                    <th class="attendance-cell {% if day in holidays_list %}holiday-cell{% endif %}">
+                                        <form action="/toggle_holiday" method="POST" style="display:inline;">
+                                            <input type="hidden" name="date" value="{{ day }}">
+                                            <input type="hidden" name="month" value="{{ selected_month }}">
+                                            <input type="hidden" name="year" value="{{ selected_year }}">
+                                            <span onclick="this.parentNode.submit()" style="cursor:pointer; display:block; font-size:11px;">{{ day.split('-')[2] }}</span>
+                                        </form>
+                                    </th>
+                                    {% endfor %}
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td><strong>{{ student.Roll_No }}</strong></td>
+                                    <td>{{ student.Name }}</td>
+                                    <td><span class="badge bg-secondary">{{ student.Course }}</span></td>
+                                    <td><strong id="percent-{{ student.Roll_No }}">{{ student.Attendance_Percent }}%</strong></td>
+                                    
+                                    {% for day in days_list %}
+                                    <td class="attendance-cell {% if day in holidays_list %}holiday-cell{% endif %}">
+                                        {% if day not in holidays_list %}
+                                        <input type="checkbox" class="form-check-input att-checkbox" 
+                                               data-roll="{{ student.Roll_No }}" data-date="{{ day }}"
+                                               {% if attendance_map.get((student.Roll_No, day)) == 1 %}checked{% endif %}>
+                                        {% else %}
+                                        <span class="text-danger style='font-size:10px;'">H</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td>
+                                        <a href="/delete_student/{{ student.Roll_No }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete Student?')">Delete</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
                         </table>
                     </div>
                 </div>
+                {% endif %}
+
+                {% if active_tab == 'student_portal' and not is_staff %}
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card p-4 text-center">
+                            <div class="mb-3">
+                                {% if current_student.Profile_Pic %}
+                                <img src="/static/uploads/{{ current_student.Profile_Pic }}" class="rounded-circle border" width="150" height="150" style="object-fit:cover;">
+                                {% else %}
+                                <div class="bg-light rounded-circle border mx-auto d-flex align-items-center justify-content-center" style="width:150px; height:150px; font-size:48px;">👤</div>
+                                {% endif %}
+                            </div>
+                            <h5>{{ current_student.Name }}</h5>
+                            <p class="text-muted">Roll Number: {{ current_student.Roll_No }} | Class: {{ current_student.Course }}</p>
+                            
+                            <form action="/upload_profile_pic" method="POST" enctype="multipart/form-data" class="mt-3">
+                                <input type="hidden" name="roll_no" value="{{ current_student.Roll_No }}">
+                                <input type="file" name="profile_image" class="form-control form-control-sm mb-2" required>
+                                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Update Profile Photo</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="card p-4 bg-primary text-white mb-4">
+                            <h3>My Verified Attendance Performance</h3>
+                            <h1 class="display-2 mt-2"><strong>{{ current_student.Attendance_Percent }}%</strong></h1>
+                            <p class="mb-0 mt-2">Attended: <strong>{{ current_student.Attended }}</strong> out of <strong>{{ current_student.Total_Classes }}</strong> active educational days scheduled this month.</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if active_tab == 'student_timetable' and not is_staff %}
+                <div class="table-container">
+                    <h4>Class Academic Timetable Schedule</h4>
+                    <table class="table table-striped mt-3">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Time Duration Slot</th>
+                                <th>Subject Title</th>
+                                <th>Assigned Lecturer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for slot in timetable %}
+                            <tr>
+                                <td><strong>{{ slot.Day }}</strong></td>
+                                <td>{{ slot.Time }}</td>
+                                <td><span class="badge bg-primary">{{ slot.Subject }}</span></td>
+                                <td>👨‍🏫 {{ slot.Teacher }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {% if active_tab == 'student_assignments' and not is_staff %}
+                <div class="table-container">
+                    <h4>Pending Academic Tasks & Homework Assignments</h4>
+                    <table class="table table-hover mt-3">
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Teacher</th>
+                                <th>Submission Deadline</th>
+                                <th>Question Details Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in assignments %}
+                            <tr>
+                                <td><strong>{{ task.Subject }}</strong></td>
+                                <td>{{ task.Teacher }}</td>
+                                <td><span class="text-danger font-weight-bold">📅 {{ task.Deadline }}</span></td>
+                                <td><div class="p-2 border rounded bg-light">{{ task.Question }}</div></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {% if active_tab == 'admin_timetable' and is_staff %}
+                <div class="card p-4 mb-4">
+                    <h4>Schedule New Class Block</h4>
+                    <form action="/add_timetable" method="POST" class="row g-3">
+                        <div class="col-md-3">
+                            <select name="day" class="form-select" required>
+                                <option value="Monday">Monday</option><option value="Tuesday">Tuesday</option>
+                                <option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option>
+                                <option value="Friday">Friday</option><option value="Saturday">Saturday</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3"><input type="text" name="time" class="form-control" placeholder="e.g. 09:00 AM - 10:00 AM" required></div>
+                        <div class="col-md-3"><input type="text" name="subject" class="form-control" placeholder="Subject Name" required></div>
+                        <div class="col-md-2"><input type="text" name="teacher" class="form-control" placeholder="Teacher Initials" required></div>
+                        <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">Add</button></div>
+                    </form>
+                </div>
+                <div class="table-container">
+                    <h4>Master Institutional Schedules</h4>
+                    <table class="table table-bordered mt-3">
+                        <thead class="table-light"><tr><th>Day</th><th>Time</th><th>Subject</th><th>Teacher</th><th>Action</th></tr></thead>
+                        <tbody>
+                            {% for slot in timetable %}
+                            <tr>
+                                <td>{{ slot.Day }}</td><td>{{ slot.Time }}</td>
+                                <td><span class="badge bg-primary">{{ slot.Subject }}</span></td><td>{{ slot.Teacher }}</td>
+                                <td><a href="/delete_timetable/{{ slot.ID }}" class="btn btn-sm btn-danger">Remove</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {% if active_tab == 'admin_assignments' and is_staff %}
+                <div class="card p-4 mb-4">
+                    <h4>Post New Homework Assignment</h4>
+                    <form action="/add_assignment" method="POST" class="row g-3">
+                        <div class="col-md-3"><input type="text" name="subject" class="form-control" placeholder="Subject Name" required></div>
+                        <div class="col-md-3"><input type="text" name="teacher" class="form-control" placeholder="Issuing Faculty" required></div>
+                        <div class="col-md-3"><input type="date" name="deadline" class="form-control" required></div>
+                        <div class="col-md-11"><textarea name="question" class="form-control" rows="2" placeholder="Type Assignment Task details question here..." required></textarea></div>
+                        <div class="col-md-1"><button type="submit" class="btn btn-primary h-100 w-100">Post</button></div>
+                    </form>
+                </div>
+                <div class="table-container">
+                    <h4>Active Homework Ledger Records</h4>
+                    <table class="table table-bordered mt-3">
+                        <thead class="table-light"><tr><th>Subject</th><th>Faculty</th><th>Deadline</th><th>Question</th><th>Action</th></tr></thead>
+                        <tbody>
+                            {% for task in assignments %}
+                            <tr>
+                                <td>{{ task.Subject }}</td><td>{{ task.Teacher }}</td><td>{{ task.Deadline }}</td><td>{{ task.Question }}</td>
+                                <td><a href="/delete_assignment/{{ task.ID }}" class="btn btn-sm btn-danger">Wipe</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {% if active_tab == 'admin_staff' and is_staff %}
+                <div class="card p-4 mb-4">
+                    <h4>Register Faculty Member</h4>
+                    <form action="/add_staff" method="POST" class="row g-3">
+                        <div class="col-md-4"><input type="text" name="emp_id" class="form-control" placeholder="Employee ID" required></div>
+                        <div class="col-md-4"><input type="text" name="name" class="form-control" placeholder="Full Name" required></div>
+                        <div class="col-md-3"><input type="text" name="department" class="form-control" placeholder="Department" required></div>
+                        <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">Save</button></div>
+                    </form>
+                </div>
+                <div class="table-container">
+                    <h4>Faculty Directory Listings</h4>
+                    <table class="table table-bordered mt-3">
+                        <thead class="table-light"><tr><th>ID</th><th>Professor Name</th><th>Department Sector</th><th>Action</th></tr></thead>
+                        <tbody>
+                            {% for member in staff %}
+                            <tr><td>{{ member.Emp_ID }}</td><td><strong>{{ member.Name }}</strong></td><td>{{ member.Department }}</td>
+                                <td><a href="/delete_staff/{{ member.Emp_ID }}" class="btn btn-sm btn-outline-danger">Retire</a></td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
             </div>
         </div>
-        {% endif %}
     </div>
 
-    <div id="studentModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal('studentModal')">&times;</span>
-            <h2>Edit Student Details</h2>
-            <form action="/edit_student" method="POST">
-                <input type="hidden" id="edit_stu_roll" name="roll_no">
-                <div class="form-group" style="margin-bottom:12px;"><label>Student Full Name</label><input type="text" id="edit_stu_name" name="name" required></div>
-                <div class="form-group" style="margin-bottom:12px;"><label>Course / Branch</label><input type="text" id="edit_stu_course" name="course" required></div>
-                <div class="form-group" style="margin-bottom:20px;"><label>Update Password</label><input type="text" id="edit_stu_pass" name="password" required></div>
-                <button type="submit">Save Changes</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="staffModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal('staffModal')">&times;</span>
-            <h2>Edit Staff Member</h2>
-            <form action="/edit_staff" method="POST">
-                <input type="hidden" id="edit_staff_id" name="emp_id">
-                <div class="form-group" style="margin-bottom:15px;"><label>Name</label><input type="text" id="edit_staff_name" name="name" required></div>
-                <div class="form-group" style="margin-bottom:20px;"><label>Department</label><input type="text" id="edit_staff_dept" name="department" required></div>
-                <button type="submit" style="background-color: var(--secondary);">Update Member</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="timetableModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal('timetableModal')">&times;</span>
-            <h2>Edit Timetable Entry</h2>
-            <form action="/edit_timetable" method="POST">
-                <input type="hidden" id="edit_time_id" name="id">
-                <div class="form-group" style="margin-bottom:15px;">
-                    <label>Day</label>
-                    <select id="edit_time_day" name="day" required>
-                        <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom:15px;"><label>Time Slot</label><input type="text" id="edit_time_slot" name="time" required></div>
-                <div class="form-group" style="margin-bottom:15px;"><label>Subject</label><input type="text" id="edit_time_sub" name="subject" required></div>
-                <div class="form-group" style="margin-bottom:20px;"><label>Teacher</label><input type="text" id="edit_time_teach" name="teacher" required></div>
-                <button type="submit" style="background-color: #8e44ad;">Save Schedule</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="assignmentModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal('assignmentModal')">&times;</span>
-            <h2>Edit Assignment Details</h2>
-            <form action="/edit_assignment" method="POST">
-                <input type="hidden" id="edit_assign_id" name="id">
-                <div class="form-group" style="margin-bottom:15px;"><label>Subject</label><input type="text" id="edit_assign_sub" name="subject" required></div>
-                <div class="form-group" style="margin-bottom:15px;"><label>Teacher</label><input type="text" id="edit_assign_teach" name="teacher" required></div>
-                <div class="form-group" style="margin-bottom:15px;"><label>Deadline Date</label><input type="date" id="edit_assign_dead" name="deadline" required></div>
-                <div class="form-group" style="margin-bottom:20px;"><label>Instructions</label><textarea id="edit_assign_ques" name="question" rows="4" required></textarea></div>
-                <button type="submit" style="background-color: #d35400;">Re-Post Assignment</button>
-            </form>
-        </div>
-    </div>
-
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        function saveAttendanceInBackground(rollNo, date, checkbox) {
-            let statusValue = checkbox.checked ? 1 : 0;
-            let formData = new FormData();
-            formData.append('roll_no', rollNo);
-            formData.append('date', date);
-            formData.append('status', statusValue);
-            formData.append('month', '{{ selected_month }}');
-            formData.append('year', '{{ selected_year }}');
+        $(document).ready(function() {
+            $('.att-checkbox').on('change', function() {
+                var checkbox = $(this);
+                var rollNo = checkbox.data('roll');
+                var targetDate = checkbox.data('date');
+                var markedStatus = checkbox.is(':checked') ? 1 : 0;
 
-            fetch('/toggle_attendance', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if(data.success) {
-                    document.getElementById('pct-' + rollNo).innerText = data.new_percent + '%';
-                    document.getElementById('count-' + rollNo).innerText = '(' + data.new_attended + '/' + data.new_total + ' open days)';
-                }
-            })
-            .catch(error => console.error('Error logging attendance data:', error));
-        }
-
-        function toggleHolidayState(dateStr) {
-            document.getElementById('holiday_date').value = dateStr;
-            document.getElementById('holidayForm').submit();
-        }
-
-        function openModal(id) { document.getElementById(id).style.display = "block"; }
-        function closeModal(id) { document.getElementById(id).style.display = "none"; }
-
-        function showStudentModal(roll, name, course, password) {
-            document.getElementById('edit_stu_roll').value = roll;
-            document.getElementById('edit_stu_name').value = name;
-            document.getElementById('edit_stu_course').value = course;
-            document.getElementById('edit_stu_pass').value = password;
-            openModal('studentModal');
-        }
-
-        function showStaffModal(id, name, dept) {
-            document.getElementById('edit_staff_id').value = id;
-            document.getElementById('edit_staff_name').value = name;
-            document.getElementById('edit_staff_dept').value = dept;
-            openModal('staffModal');
-        }
-
-        function showTimetableModal(id, day, timeSlot, subject, teacher) {
-            document.getElementById('edit_time_id').value = id;
-            document.getElementById('edit_time_day').value = day;
-            document.getElementById('edit_time_slot').value = timeSlot;
-            document.getElementById('edit_time_sub').value = subject;
-            document.getElementById('edit_time_teach').value = teacher;
-            openModal('timetableModal');
-        }
-
-        function showAssignmentModal(id, sub, teach, deadline, question) {
-            document.getElementById('edit_assign_id').value = id;
-            document.getElementById('edit_assign_sub').value = sub;
-            document.getElementById('edit_assign_teach').value = teach;
-            document.getElementById('edit_assign_dead').value = deadline;
-            document.getElementById('edit_assign_ques').value = question;
-            openModal('assignmentModal');
-        }
-
-        function openTab(tabName, btn) {
-            let contents = document.getElementsByClassName("tab-content");
-            for (let i = 0; i < contents.length; i++) {
-                contents[i].classList.remove("active");
-            }
-            let btns = document.getElementsByClassName("tab-btn");
-            for (let i = 0; i < btns.length; i++) {
-                btns[i].classList.remove("active");
-                btns[i].style.backgroundColor = ""; 
-                btns[i].style.color = "";
-            }
-            document.getElementById(tabName).classList.add("active");
-            btn.classList.add("active");
-            
-            if(tabName === 'student_portal') {
-                btn.style.backgroundColor = "#2c3e50";
-                btn.style.color = "white";
-            }
-        }
-
-        window.onload = function() {
-            let activeTab = "{{ active_tab }}";
-            let btn = document.getElementById('btn-' + activeTab);
-            if(btn) { btn.click(); }
-        };
-
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.style.display = "none";
-            }
-        }
+                $.ajax({
+                    url: '/toggle_attendance',
+                    type: 'POST',
+                    data: {
+                        roll_no: rollNo,
+                        date: targetDate,
+                        status: markedStatus,
+                        month: "{{ selected_month }}",
+                        year: "{{ selected_year }}"
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#percent-' + rollNo).text(response.new_percent + '%');
+                        }
+                    },
+                    error: function() {
+                        alert('System server failed to write synchronization update packet data.');
+                        checkbox.prop('checked', !markedStatus);
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>

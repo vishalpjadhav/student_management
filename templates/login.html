@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduCore Gateway Secure Login Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-card { border: none; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); background: white; max-width: 420px; width: 100%; padding: 35px; }
+        .brand-logo { font-size: 32px; font-weight: bold; color: #0d6efd; text-align: center; margin-bottom: 25px; }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="brand-logo">🎓 EduCore Gateway</div>
+        
+        {% if error %}
+        <div class="alert alert-danger p-2 text-center" style="font-size:14px;">{{ error }}</div>
+        {% endif %}
+
+        <form action="/login" method="POST">
+            <div class="mb-3">
+                <label class="form-label">Select User Category Role</label>
+                <select name="login_type" class="form-select" required>
+                    <option value="student">Student Portal</option>
+                    <option value="staff">Faculty / Institutional Admin</option>
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Username / Identity Identification ID</label>
+                <input type="text" name="username" class="form-control" placeholder="Roll No or Employee Username" required autocomplete="off">
+                <div class="form-text text-muted" style="font-size:11px;">Staff default: 'admin' | Student: 'Their registered Roll Number'</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Security Access Password Code</label>
+                <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+                <div class="form-text text-muted" style="font-size:11px;">Staff password default: 'admin123'</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 mt-2">Authenticate Security Session</button>
+        </form>
+    </div>
+
+</body>
+</html>
